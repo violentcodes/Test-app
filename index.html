@@ -1,0 +1,1153 @@
+<html lang="en" class="scroll-smooth" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Test App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAQjTS8ezkNk30pD9cyS-J_GQrNq6DhzpA",
+    authDomain: "student-test-app-8c571.firebaseapp.com",
+    projectId: "student-test-app-8c571",
+    storageBucket: "student-test-app-8c571.firebasestorage.app",
+    messagingSenderId: "660051786697",
+    appId: "1:660051786697:web:52cf3f4a18305ec43c0618",
+    measurementId: "G-WKQEBMCWVD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Global functions
+  window.saveTestToFirebase = async (testData) => {
+    await addDoc(collection(db, "tests"), testData);
+  };
+
+  window.listenToTests = (callback) => {
+    const testsRef = collection(db, "tests");
+    onSnapshot(testsRef, (snapshot) => {
+      const data = [];
+      snapshot.forEach((doc) => {
+        data.push({ id: doc.id, ...doc.data() });
+      });
+      callback(data);
+    });
+  };
+
+  window.deleteTestFromFirebase = async (testId) => {
+    await deleteDoc(doc(db, "tests", testId));
+  };
+
+  window.createStudentAccount = async (student) => {
+    await addDoc(collection(db, "student_accounts"), student);
+  };
+
+  window.getAllStudents = async () => {
+    const studentsSnap = await getDocs(collection(db, "student_accounts"));
+    return studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  };
+
+  window.saveSubmission = async (submission) => {
+    await addDoc(collection(db, "submissions"), submission);
+  };
+
+  window.listenToSubmissions = (testTitle, callback) => {
+    const submissionsRef = collection(db, "submissions");
+    onSnapshot(submissionsRef, (snapshot) => {
+      const all = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.testTitle === testTitle) {
+          all.push({ id: doc.id, ...data });
+        }
+      });
+      callback(all);
+    });
+  };
+</script>
+
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <div id="app" class="flex-grow flex flex-col">
+    <!-- Login Page -->
+    <section id="login-page" class="flex flex-col justify-center items-center min-h-screen p-6" >
+      <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-3xl font-bold mb-6 text-center text-indigo-700">Test App Login</h1>
+        <form id="login-form" class="space-y-6" autocomplete="off">
+          <div>
+            <label for="username" class="block mb-2 font-semibold text-gray-700">Username</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              required
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Enter username"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="password" class="block mb-2 font-semibold text-gray-700">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Enter password"
+              autocomplete="new-password"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-md transition"
+          >
+            Login
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Teacher Admin Page -->
+    <section id="teacher-admin-page" class="hidden min-h-screen p-6 bg-gray-100 overflow-auto">
+      <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-6">
+          <h2 class="text-3xl font-bold text-indigo-700">Create a New Test</h2>
+          <button id="teacher-logout-btn" class="text-red-600 hover:text-red-800 font-semibold">
+            <i class="fas fa-sign-out-alt mr-1"></i> Logout
+          </button>
+        </header>
+        <form id="create-test-form" class="bg-white p-6 rounded-lg shadow-md space-y-6" autocomplete="off">
+          <div>
+            <label for="test-title" class="block mb-2 font-semibold text-gray-700">Test Title</label>
+            <input
+              type="text"
+              id="test-title"
+              name="testTitle"
+              required
+              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Enter test title"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="test-timer" class="block mb-2 font-semibold text-gray-700">Timer (minutes)</label>
+            <input
+              type="number"
+              id="test-timer"
+              name="testTimer"
+              min="1"
+              max="180"
+              required
+              class="w-32 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. 30"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label class="block mb-2 font-semibold text-gray-700">Add Questions</label>
+            <div id="questions-container" class="space-y-6 max-h-[400px] overflow-y-auto border border-gray-300 rounded-md p-4 bg-gray-50">
+            </div>
+            <button
+              type="button"
+              id="add-question-btn"
+              class="mt-3 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold transition"
+            >
+              <i class="fas fa-plus mr-2"></i> Add Question
+            </button>
+          </div>
+          <div class="flex justify-end space-x-4">
+            <button
+              type="reset"
+              class="px-5 py-2 border border-gray-400 rounded-md hover:bg-gray-100 transition"
+            >
+              Reset
+            </button>
+            <button
+              type="submit"
+              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold transition"
+            >
+              Save Test
+            </button>
+          </div>
+        </form>
+
+        <section id="saved-tests-section" class="mt-12">
+          <h3 class="text-2xl font-bold mb-4 text-indigo-700">Saved Tests</h3>
+          <div id="saved-tests-list" class="space-y-4">
+          </div>
+        </section>
+
+        <section id="student-accounts-section" class="mt-12 bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-2xl font-bold mb-4 text-indigo-700">Manage Student Accounts</h3>
+          <form id="create-student-form" class="space-y-4 max-w-md" autocomplete="off">
+            <div>
+              <label for="student-username" class="block mb-2 font-semibold text-gray-700">Student Username</label>
+              <input
+                type="text"
+                id="student-username"
+                name="studentUsername"
+                required
+                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter student username"
+                autocomplete="off"
+              />
+            </div>
+            <div>
+              <label for="student-password" class="block mb-2 font-semibold text-gray-700">Student Password</label>
+              <input
+                type="password"
+                id="student-password"
+                name="studentPassword"
+                required
+                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter student password"
+                autocomplete="new-password"
+              />
+            </div>
+            <button
+              type="submit"
+              class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold transition"
+            >
+              Create Student Account
+            </button>
+          </form>
+          <div id="student-accounts-list" class="mt-6 space-y-3 max-w-md">
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Teacher View Test Data Page -->
+    <section id="teacher-view-data-page" class="hidden min-h-screen p-6 bg-gray-100 overflow-auto">
+      <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-6">
+          <h2 class="text-3xl font-bold text-indigo-700">View Submitted Test Data</h2>
+          <button id="teacher-data-logout-btn" class="text-red-600 hover:text-red-800 font-semibold">
+            <i class="fas fa-sign-out-alt mr-1"></i> Logout
+          </button>
+        </header>
+        <div id="submitted-tests-container" class="space-y-8">
+        </div>
+      </div>
+    </section>
+
+    <!-- Student Test Page -->
+    <section id="student-test-page" class="hidden min-h-screen p-6 bg-gray-50 flex flex-col">
+      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6 flex flex-col flex-grow">
+        <header class="flex justify-between items-center mb-6">
+          <h2 id="student-test-title" class="text-3xl font-bold text-indigo-700"></h2>
+          <button id="student-logout-btn" class="text-red-600 hover:text-red-800 font-semibold">
+            <i class="fas fa-sign-out-alt mr-1"></i> Logout
+          </button>
+        </header>
+        <div class="mb-4 flex items-center space-x-4">
+          <div id="timer-container" class="text-lg font-semibold text-indigo-700">
+            Time Remaining: <span id="time-remaining">00:00</span>
+          </div>
+          <button id="toggle-timer-btn" type="button" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold transition select-none">
+            Hide Timer
+          </button>
+        </div>
+        <form id="student-test-form" class="flex-grow overflow-y-auto space-y-8" autocomplete="off">
+        </form>
+        <div class="mt-6 flex justify-end">
+          <button
+            id="submit-test-btn"
+            type="button"
+            class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md transition"
+          >
+            Submit Test
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      // Constants
+      const ADMIN_PASSWORD = "testadmin2025";
+      const TEACHER_USERNAME = "teacher";
+
+      // Elements
+      const loginPage = document.getElementById("login-page");
+      const teacherAdminPage = document.getElementById("teacher-admin-page");
+      const teacherViewDataPage = document.getElementById("teacher-view-data-page");
+      const studentTestPage = document.getElementById("student-test-page");
+
+      const loginForm = document.getElementById("login-form");
+      const usernameInput = document.getElementById("username");
+      const passwordInput = document.getElementById("password");
+
+      const teacherLogoutBtn = document.getElementById("teacher-logout-btn");
+      const teacherDataLogoutBtn = document.getElementById("teacher-data-logout-btn");
+      const studentLogoutBtn = document.getElementById("student-logout-btn");
+
+      const createTestForm = document.getElementById("create-test-form");
+      const addQuestionBtn = document.getElementById("add-question-btn");
+      const questionsContainer = document.getElementById("questions-container");
+      const savedTestsList = document.getElementById("saved-tests-list");
+
+      const submittedTestsContainer = document.getElementById("submitted-tests-container");
+
+      const studentTestTitle = document.getElementById("student-test-title");
+      const studentTestForm = document.getElementById("student-test-form");
+      const submitTestBtn = document.getElementById("submit-test-btn");
+      const timeRemainingSpan = document.getElementById("time-remaining");
+      const timerContainer = document.getElementById("timer-container");
+      const toggleTimerBtn = document.getElementById("toggle-timer-btn");
+
+      const createStudentForm = document.getElementById("create-student-form");
+      const studentAccountsList = document.getElementById("student-accounts-list");
+
+      // State
+      let currentUser = null; // "teacher" or student username string
+      let currentTest = null; // test object for student test
+      let timerInterval = null;
+      let testEndTimestamp = null;
+      let tabOutStart = null;
+      let tabOutTimeout = null;
+      let timerVisible = true;
+
+      // Storage keys
+      const STORAGE_TESTS_KEY = "tests_data";
+      const STORAGE_SUBMISSIONS_KEY = "test_submissions";
+      const STORAGE_STUDENTS_KEY = "student_accounts";
+      const STORAGE_STUDENT_SESSIONS_KEY = "student_sessions";
+
+      // Helpers
+      function saveTests(tests) {
+        localStorage.setItem(STORAGE_TESTS_KEY, JSON.stringify(tests));
+      }
+      function loadTests() {
+        const data = localStorage.getItem(STORAGE_TESTS_KEY);
+        if (!data) return [];
+        try {
+          return JSON.parse(data);
+        } catch {
+          return [];
+        }
+      }
+      function saveSubmissions(submissions) {
+        localStorage.setItem(STORAGE_SUBMISSIONS_KEY, JSON.stringify(submissions));
+      }
+      function loadSubmissions() {
+        const data = localStorage.getItem(STORAGE_SUBMISSIONS_KEY);
+        if (!data) return [];
+        try {
+          return JSON.parse(data);
+        } catch {
+          return [];
+        }
+      }
+      function saveStudents(students) {
+        localStorage.setItem(STORAGE_STUDENTS_KEY, JSON.stringify(students));
+      }
+      function loadStudents() {
+        const data = localStorage.getItem(STORAGE_STUDENTS_KEY);
+        if (!data) return [];
+        try {
+          return JSON.parse(data);
+        } catch {
+          return [];
+        }
+      }
+      function saveStudentSessions(sessions) {
+        localStorage.setItem(STORAGE_STUDENT_SESSIONS_KEY, JSON.stringify(sessions));
+      }
+      function loadStudentSessions() {
+        const data = localStorage.getItem(STORAGE_STUDENT_SESSIONS_KEY);
+        if (!data) return {};
+        try {
+          return JSON.parse(data);
+        } catch {
+          return {};
+        }
+      }
+
+      // UI Helpers
+      function showPage(page) {
+        loginPage.classList.add("hidden");
+        teacherAdminPage.classList.add("hidden");
+        teacherViewDataPage.classList.add("hidden");
+        studentTestPage.classList.add("hidden");
+
+        page.classList.remove("hidden");
+      }
+
+      // Question Template for Admin
+      function createQuestionElement(index, questionData = null) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "bg-white p-4 rounded-md border border-gray-300";
+
+        // Question text
+        const qLabel = document.createElement("label");
+        qLabel.className = "block mb-2 font-semibold text-gray-700";
+        qLabel.textContent = `Question ${index + 1}`;
+        qLabel.setAttribute("for", `question-text-${index}`);
+
+        const qInput = document.createElement("input");
+        qInput.type = "text";
+        qInput.id = `question-text-${index}`;
+        qInput.name = `questionText-${index}`;
+        qInput.required = true;
+        qInput.placeholder = "Enter question text";
+        qInput.className =
+          "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500";
+        if (questionData && questionData.text) qInput.value = questionData.text;
+
+        // Options container
+        const optionsContainer = document.createElement("div");
+        optionsContainer.className = "mt-4 space-y-3";
+
+        // Add 4 options
+        for (let i = 0; i < 4; i++) {
+          const optionWrapper = document.createElement("div");
+          optionWrapper.className = "flex items-center space-x-3";
+
+          const optionRadio = document.createElement("input");
+          optionRadio.type = "radio";
+          optionRadio.name = `correctOption-${index}`;
+          optionRadio.id = `correct-option-${index}-${i}`;
+          optionRadio.value = i;
+          optionRadio.required = true;
+          if (questionData && questionData.correctOption === i) optionRadio.checked = true;
+
+          const optionInput = document.createElement("input");
+          optionInput.type = "text";
+          optionInput.id = `option-text-${index}-${i}`;
+          optionInput.name = `optionText-${index}-${i}`;
+          optionInput.required = true;
+          optionInput.placeholder = `Option ${String.fromCharCode(65 + i)}`;
+          optionInput.className =
+            "flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500";
+          if (questionData && questionData.options && questionData.options[i])
+            optionInput.value = questionData.options[i];
+
+          optionWrapper.appendChild(optionRadio);
+          optionWrapper.appendChild(optionInput);
+          optionsContainer.appendChild(optionWrapper);
+        }
+
+        // Remove question button
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className =
+          "mt-3 inline-flex items-center px-3 py-1 text-sm text-red-600 hover:text-red-800 font-semibold transition";
+        removeBtn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> Remove Question';
+        removeBtn.addEventListener("click", () => {
+          wrapper.remove();
+          updateQuestionLabels();
+        });
+
+        wrapper.appendChild(qLabel);
+        wrapper.appendChild(qInput);
+        wrapper.appendChild(optionsContainer);
+        wrapper.appendChild(removeBtn);
+
+        return wrapper;
+      }
+
+      // Update question labels after removal
+      function updateQuestionLabels() {
+        const questionDivs = questionsContainer.children;
+        for (let i = 0; i < questionDivs.length; i++) {
+          const label = questionDivs[i].querySelector("label");
+          label.textContent = `Question ${i + 1}`;
+          label.setAttribute("for", `question-text-${i}`);
+
+          // Update inputs ids and names
+          const qInput = questionDivs[i].querySelector(`input[type=text]`);
+          qInput.id = `question-text-${i}`;
+          qInput.name = `questionText-${i}`;
+
+          const radios = questionDivs[i].querySelectorAll(`input[type=radio]`);
+          const optionInputs = questionDivs[i].querySelectorAll(`input[type=text]`);
+          // radios and optionInputs are mixed, radios first 4, then optionInputs 4
+          // Actually radios and optionInputs are separate, so we select carefully:
+          // radios: 4 radio inputs
+          // optionInputs: 4 text inputs for options
+
+          // We can select radios and optionInputs separately:
+          const radioInputs = questionDivs[i].querySelectorAll(`input[type=radio]`);
+          const optionTextInputs = questionDivs[i].querySelectorAll(`input[type=text]`);
+          // But optionTextInputs includes question text input, so filter:
+          const filteredOptionTextInputs = Array.from(optionTextInputs).filter(
+            (el) => el.id.startsWith("option-text-")
+          );
+
+          radioInputs.forEach((radio, idx) => {
+            radio.name = `correctOption-${i}`;
+            radio.id = `correct-option-${i}-${idx}`;
+          });
+          filteredOptionTextInputs.forEach((optInput, idx) => {
+            optInput.id = `option-text-${i}-${idx}`;
+            optInput.name = `optionText-${i}-${idx}`;
+          });
+        }
+      }
+
+      // Add new question
+      addQuestionBtn.addEventListener("click", () => {
+        const newQuestion = createQuestionElement(questionsContainer.children.length);
+        questionsContainer.appendChild(newQuestion);
+      });
+
+      // Render saved tests in teacher admin page
+      function renderSavedTests() {
+        const tests = loadTests();
+        savedTestsList.innerHTML = "";
+        if (tests.length === 0) {
+          savedTestsList.innerHTML =
+            '<p class="text-gray-600 italic">No tests created yet.</p>';
+          return;
+        }
+        tests.forEach((test, idx) => {
+          const testCard = document.createElement("div");
+          testCard.className =
+            "bg-white p-4 rounded-md shadow border border-gray-300 flex flex-col md:flex-row md:justify-between md:items-center";
+
+          const infoDiv = document.createElement("div");
+          infoDiv.className = "mb-3 md:mb-0";
+
+          const titleEl = document.createElement("h4");
+          titleEl.className = "text-xl font-semibold text-indigo-700";
+          titleEl.textContent = test.title;
+
+          const timerEl = document.createElement("p");
+          timerEl.className = "text-gray-600";
+          timerEl.textContent = `Timer: ${test.timer} minute${test.timer > 1 ? "s" : ""}`;
+
+          const questionsCountEl = document.createElement("p");
+          questionsCountEl.className = "text-gray-600";
+          questionsCountEl.textContent = `Questions: ${test.questions.length}`;
+
+          infoDiv.appendChild(titleEl);
+          infoDiv.appendChild(timerEl);
+          infoDiv.appendChild(questionsCountEl);
+
+          const actionsDiv = document.createElement("div");
+          actionsDiv.className = "flex space-x-3";
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.className =
+            "px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold transition";
+          deleteBtn.textContent = "Delete";
+          deleteBtn.addEventListener("click", () => {
+            if (
+              confirm(
+                `Are you sure you want to delete the test "${test.title}"? This action cannot be undone.`
+              )
+            ) {
+              const updatedTests = loadTests().filter((_, i) => i !== idx);
+              saveTests(updatedTests);
+              renderSavedTests();
+            }
+          });
+
+          const viewDataBtn = document.createElement("button");
+          viewDataBtn.className =
+            "px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold transition";
+          viewDataBtn.textContent = "View Submissions";
+          viewDataBtn.addEventListener("click", () => {
+            showTeacherViewDataPage(test.title);
+          });
+
+          const startTestBtn = document.createElement("button");
+          startTestBtn.className =
+            "px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold transition";
+          startTestBtn.textContent = "Start Test (Student)";
+          startTestBtn.addEventListener("click", () => {
+            startStudentTest(test);
+          });
+
+          actionsDiv.appendChild(startTestBtn);
+          actionsDiv.appendChild(viewDataBtn);
+          actionsDiv.appendChild(deleteBtn);
+
+          testCard.appendChild(infoDiv);
+          testCard.appendChild(actionsDiv);
+
+          savedTestsList.appendChild(testCard);
+        });
+      }
+
+      // Save test from form
+      createTestForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(createTestForm);
+        const title = formData.get("testTitle").trim();
+        const timer = parseInt(formData.get("testTimer"), 10);
+
+        if (!title) {
+          alert("Please enter a test title.");
+          return;
+        }
+        if (!timer || timer < 1) {
+          alert("Please enter a valid timer (at least 1 minute).");
+          return;
+        }
+
+        // Gather questions
+        const questions = [];
+        const questionDivs = questionsContainer.children;
+        if (questionDivs.length === 0) {
+          alert("Please add at least one question.");
+          return;
+        }
+        for (let i = 0; i < questionDivs.length; i++) {
+          const qText = formData.get(`questionText-${i}`);
+          if (!qText || qText.trim() === "") {
+            alert(`Question ${i + 1} text cannot be empty.`);
+            return;
+          }
+          const options = [];
+          for (let j = 0; j < 4; j++) {
+            const opt = formData.get(`optionText-${i}-${j}`);
+            if (!opt || opt.trim() === "") {
+              alert(`Option ${String.fromCharCode(65 + j)} for question ${i + 1} cannot be empty.`);
+              return;
+            }
+            options.push(opt.trim());
+          }
+          const correctOption = formData.get(`correctOption-${i}`);
+          if (correctOption === null) {
+            alert(`Please select the correct option for question ${i + 1}.`);
+            return;
+          }
+          questions.push({
+            text: qText.trim(),
+            options,
+            correctOption: parseInt(correctOption, 10),
+          });
+        }
+
+        // Save test
+        const tests = loadTests();
+        // Check for duplicate title
+        if (tests.some((t) => t.title.toLowerCase() === title.toLowerCase())) {
+          if (
+            !confirm(
+              "A test with this title already exists. Do you want to overwrite it?"
+            )
+          ) {
+            return;
+          }
+          // Overwrite existing test
+          const idx = tests.findIndex(
+            (t) => t.title.toLowerCase() === title.toLowerCase()
+          );
+          tests[idx] = { title, timer, questions };
+        } else {
+          tests.push({ title, timer, questions });
+        }
+        saveTests(tests);
+        alert("Test saved successfully.");
+        createTestForm.reset();
+        questionsContainer.innerHTML = "";
+        renderSavedTests();
+      });
+
+      // Show teacher view data page for a test
+      function showTeacherViewDataPage(testTitle) {
+        showPage(teacherViewDataPage);
+        renderSubmittedData(testTitle);
+      }
+
+      // Render submitted data for a test
+      function renderSubmittedData(testTitle) {
+        submittedTestsContainer.innerHTML = "";
+        const submissions = loadSubmissions().filter(
+          (sub) => sub.testTitle === testTitle
+        );
+        if (submissions.length === 0) {
+          submittedTestsContainer.innerHTML =
+            '<p class="text-gray-600 italic">No submissions for this test yet.</p>';
+          return;
+        }
+
+        submissions.forEach((submission, idx) => {
+          const card = document.createElement("div");
+          card.className =
+            "bg-white p-4 rounded-md shadow border border-gray-300";
+
+          const header = document.createElement("div");
+          header.className = "flex justify-between items-center mb-3";
+
+          const title = document.createElement("h4");
+          title.className = "text-xl font-semibold text-indigo-700";
+          title.textContent = `Submission #${idx + 1} - Student: ${submission.studentName}`;
+
+          const date = document.createElement("p");
+          date.className = "text-gray-500 text-sm";
+          const d = new Date(submission.submittedAt);
+          date.textContent = d.toLocaleString();
+
+          header.appendChild(title);
+          header.appendChild(date);
+
+          card.appendChild(header);
+
+          // Show answers and score
+          const questions = submission.testQuestions;
+          const answers = submission.answers;
+          const score = submission.score;
+
+          const scoreEl = document.createElement("p");
+          scoreEl.className = "mb-3 font-semibold text-green-700";
+          scoreEl.textContent = `Score: ${score} / ${questions.length}`;
+          card.appendChild(scoreEl);
+
+          questions.forEach((q, i) => {
+            const qDiv = document.createElement("div");
+            qDiv.className = "mb-4";
+
+            const qText = document.createElement("p");
+            qText.className = "font-semibold text-gray-800";
+            qText.textContent = `Q${i + 1}: ${q.text}`;
+            qDiv.appendChild(qText);
+
+            const userAnswer = answers[i];
+            const correctAnswer = q.correctOption;
+
+            const userAnswerText = userAnswer !== null && userAnswer !== undefined ? q.options[userAnswer] : "No answer";
+            const correctAnswerText = q.options[correctAnswer];
+
+            const answerEl = document.createElement("p");
+            answerEl.className =
+              userAnswer === correctAnswer
+                ? "text-green-700"
+                : "text-red-700";
+            answerEl.innerHTML = `Your answer: <span class="font-semibold">${userAnswerText}</span>`;
+            qDiv.appendChild(answerEl);
+
+            if (userAnswer !== correctAnswer) {
+              const correctEl = document.createElement("p");
+              correctEl.className = "text-green-700";
+              correctEl.innerHTML = `Correct answer: <span class="font-semibold">${correctAnswerText}</span>`;
+              qDiv.appendChild(correctEl);
+            }
+
+            card.appendChild(qDiv);
+          });
+
+          submittedTestsContainer.appendChild(card);
+        });
+      }
+
+      // Start student test page with a test object
+      function startStudentTest(test) {
+        currentTest = test;
+        showPage(studentTestPage);
+        studentTestTitle.textContent = test.title;
+        studentTestForm.innerHTML = "";
+
+        // Render questions
+        test.questions.forEach((q, i) => {
+          const qWrapper = document.createElement("fieldset");
+          qWrapper.className = "border border-gray-300 rounded-md p-4";
+
+          const legend = document.createElement("legend");
+          legend.className = "font-semibold text-gray-800 mb-3";
+          legend.textContent = `Q${i + 1}: ${q.text}`;
+          qWrapper.appendChild(legend);
+
+          q.options.forEach((opt, idx) => {
+            const optionId = `student-q${i}-opt${idx}`;
+
+            const label = document.createElement("label");
+            label.className = "flex items-center space-x-3 mb-2 cursor-pointer";
+
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = `question-${i}`;
+            radio.value = idx;
+            radio.id = optionId;
+            radio.className = "cursor-pointer";
+
+            const span = document.createElement("span");
+            span.textContent = opt;
+
+            label.appendChild(radio);
+            label.appendChild(span);
+
+            qWrapper.appendChild(label);
+          });
+
+          studentTestForm.appendChild(qWrapper);
+        });
+
+        // Setup timer
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        const now = Date.now();
+        testEndTimestamp = now + test.timer * 60 * 1000;
+        updateTimerDisplay();
+        timerInterval = setInterval(() => {
+          updateTimerDisplay();
+        }, 1000);
+
+        // Reset tab out tracking
+        tabOutStart = null;
+        if (tabOutTimeout) {
+          clearTimeout(tabOutTimeout);
+          tabOutTimeout = null;
+        }
+
+        // Focus tracking for tab out detection
+        window.addEventListener("blur", onWindowBlur);
+        window.addEventListener("focus", onWindowFocus);
+
+        // Mark student as logged in session
+        markStudentSession(currentUser);
+      }
+
+      // Update timer display and auto-submit if time is up
+      function updateTimerDisplay() {
+        const now = Date.now();
+        let diff = Math.floor((testEndTimestamp - now) / 1000);
+        if (diff < 0) diff = 0;
+
+        const minutes = Math.floor(diff / 60)
+          .toString()
+          .padStart(2, "0");
+        const seconds = (diff % 60).toString().padStart(2, "0");
+        timeRemainingSpan.textContent = `${minutes}:${seconds}`;
+
+        if (diff === 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          alert("Time is up! The test will be submitted automatically.");
+          submitStudentTest();
+        }
+      }
+
+      // Tab out detection handlers
+      function onWindowBlur() {
+        tabOutStart = Date.now();
+        tabOutTimeout = setTimeout(() => {
+          alert(
+            "You have tabbed out for more than 5 seconds. The test will be submitted automatically."
+          );
+          submitStudentTest();
+        }, 5000);
+      }
+      function onWindowFocus() {
+        if (tabOutTimeout) {
+          clearTimeout(tabOutTimeout);
+          tabOutTimeout = null;
+        }
+        tabOutStart = null;
+      }
+
+      // Submit student test
+      function submitStudentTest() {
+        if (!currentTest) return;
+
+        // Remove tab out listeners
+        window.removeEventListener("blur", onWindowBlur);
+        window.removeEventListener("focus", onWindowFocus);
+
+        // Gather answers
+        const answers = [];
+        for (let i = 0; i < currentTest.questions.length; i++) {
+          const radios = studentTestForm.querySelectorAll(
+            `input[name="question-${i}"]`
+          );
+          let selected = null;
+          radios.forEach((r) => {
+            if (r.checked) selected = parseInt(r.value, 10);
+          });
+          answers.push(selected);
+        }
+
+        // Calculate score
+        let score = 0;
+        currentTest.questions.forEach((q, i) => {
+          if (answers[i] === q.correctOption) score++;
+        });
+
+        // Save submission
+        const submissions = loadSubmissions();
+        submissions.push({
+          testTitle: currentTest.title,
+          studentName: currentUser,
+          answers,
+          score,
+          submittedAt: new Date().toISOString(),
+          testQuestions: currentTest.questions,
+        });
+        saveSubmissions(submissions);
+
+        alert(`Test submitted successfully! Your score: ${score} / ${currentTest.questions.length}`);
+
+        // Clear student session
+        clearStudentSession(currentUser);
+
+        // Reset and go back to login page
+        currentTest = null;
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        currentUser = null;
+        showPage(loginPage);
+      }
+
+      // Submit button event
+      submitTestBtn.addEventListener("click", () => {
+        if (
+          confirm(
+            "Are you sure you want to submit the test? You won't be able to change answers after submission."
+          )
+        ) {
+          submitStudentTest();
+        }
+      });
+
+      // Logout buttons
+      teacherLogoutBtn.addEventListener("click", () => {
+        currentUser = null;
+        showPage(loginPage);
+      });
+      teacherDataLogoutBtn.addEventListener("click", () => {
+        currentUser = null;
+        showPage(loginPage);
+      });
+      studentLogoutBtn.addEventListener("click", () => {
+        if (currentUser) clearStudentSession(currentUser);
+        currentUser = null;
+        showPage(loginPage);
+      });
+
+      // Login form submit
+      loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        if (username.toLowerCase() === TEACHER_USERNAME && password === ADMIN_PASSWORD) {
+          currentUser = "teacher";
+          showPage(teacherAdminPage);
+          renderSavedTests();
+          createTestForm.reset();
+          questionsContainer.innerHTML = "";
+          renderStudentAccounts();
+        } else {
+          // Check student accounts
+          const students = loadStudents();
+          const student = students.find(
+            (s) => s.username === username && s.password === password
+          );
+          if (!student) {
+            alert("Invalid username or password.");
+            loginForm.reset();
+            return;
+          }
+          // Check if student already logged in on another device
+          const sessions = loadStudentSessions();
+          if (sessions[username]) {
+            alert("This student is already logged in on another device. Multiple logins are not allowed.");
+            loginForm.reset();
+            return;
+          }
+          currentUser = username;
+          // Show student test selection page (list tests to choose from)
+          showStudentTestSelection();
+        }
+        loginForm.reset();
+      });
+
+      // Student test selection page (simple modal-like)
+      function showStudentTestSelection() {
+        const tests = loadTests();
+        if (tests.length === 0) {
+          alert("No tests available currently. Please contact your teacher.");
+          currentUser = null;
+          showPage(loginPage);
+          return;
+        }
+
+        // Create modal container
+        const modal = document.createElement("div");
+        modal.className =
+          "fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4";
+
+        const modalContent = document.createElement("div");
+        modalContent.className =
+          "bg-white rounded-lg shadow-lg max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto";
+
+        const title = document.createElement("h3");
+        title.className = "text-2xl font-bold mb-4 text-indigo-700";
+        title.textContent = "Select a Test to Start";
+
+        const list = document.createElement("div");
+        list.className = "space-y-4";
+
+        tests.forEach((test) => {
+          const btn = document.createElement("button");
+          btn.className =
+            "w-full text-left px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold transition";
+          btn.textContent = test.title;
+          btn.addEventListener("click", () => {
+            document.body.removeChild(modal);
+            startStudentTest(test);
+          });
+          list.appendChild(btn);
+        });
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className =
+          "mt-6 w-full px-4 py-3 bg-gray-300 hover:bg-gray-400 rounded-md font-semibold transition";
+        cancelBtn.textContent = "Logout";
+        cancelBtn.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          clearStudentSession(currentUser);
+          currentUser = null;
+          showPage(loginPage);
+        });
+
+        modalContent.appendChild(title);
+        modalContent.appendChild(list);
+        modalContent.appendChild(cancelBtn);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        showPage(studentTestPage);
+        studentTestTitle.textContent = "";
+        studentTestForm.innerHTML = "";
+        timeRemainingSpan.textContent = "00:00";
+      }
+
+      // Student accounts management
+      createStudentForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const formData = new FormData(createStudentForm);
+        const username = formData.get("studentUsername").trim();
+        const password = formData.get("studentPassword");
+
+        if (!username) {
+          alert("Student username cannot be empty.");
+          return;
+        }
+        if (!password) {
+          alert("Student password cannot be empty.");
+          return;
+        }
+
+        // Validate username uniqueness
+        const students = loadStudents();
+        if (students.some((s) => s.username.toLowerCase() === username.toLowerCase())) {
+          alert("A student with this username already exists.");
+          return;
+        }
+
+        students.push({ username, password });
+        saveStudents(students);
+        alert(`Student account "${username}" created successfully.`);
+        createStudentForm.reset();
+        renderStudentAccounts();
+      });
+
+      // Render student accounts list
+      function renderStudentAccounts() {
+        const students = loadStudents();
+        studentAccountsList.innerHTML = "";
+        if (students.length === 0) {
+          studentAccountsList.innerHTML = '<p class="text-gray-600 italic">No student accounts created yet.</p>';
+          return;
+        }
+        students.forEach((student, idx) => {
+          const div = document.createElement("div");
+          div.className = "flex justify-between items-center border border-gray-300 rounded-md p-3";
+
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "font-semibold text-gray-800";
+          nameSpan.textContent = student.username;
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold transition";
+          delBtn.textContent = "Delete";
+          delBtn.addEventListener("click", () => {
+            if (confirm(`Are you sure you want to delete student account "${student.username}"?`)) {
+              const updatedStudents = loadStudents().filter((_, i) => i !== idx);
+              saveStudents(updatedStudents);
+              // Also clear session if any
+              clearStudentSession(student.username);
+              renderStudentAccounts();
+            }
+          });
+
+          div.appendChild(nameSpan);
+          div.appendChild(delBtn);
+          studentAccountsList.appendChild(div);
+        });
+      }
+
+      // Student session management to prevent multiple logins
+      function markStudentSession(username) {
+        const sessions = loadStudentSessions();
+        sessions[username] = true;
+        saveStudentSessions(sessions);
+        // Also store in sessionStorage for current tab to detect logout or close
+        sessionStorage.setItem("studentLoggedIn", username);
+      }
+      function clearStudentSession(username) {
+        const sessions = loadStudentSessions();
+        if (sessions[username]) {
+          delete sessions[username];
+          saveStudentSessions(sessions);
+        }
+        if (sessionStorage.getItem("studentLoggedIn") === username) {
+          sessionStorage.removeItem("studentLoggedIn");
+        }
+      }
+
+      // On window unload, clear student session if logged in as student
+      window.addEventListener("beforeunload", () => {
+        if (currentUser && currentUser !== "teacher") {
+          clearStudentSession(currentUser);
+        }
+      });
+
+      // Also clear session on logout button click handled above
+
+      // Timer toggle button
+      toggleTimerBtn.addEventListener("click", () => {
+        timerVisible = !timerVisible;
+        if (timerVisible) {
+          timerContainer.style.display = "block";
+          toggleTimerBtn.textContent = "Hide Timer";
+        } else {
+          timerContainer.style.display = "none";
+          toggleTimerBtn.textContent = "Show Timer";
+        }
+      });
+
+      // On page load show login page
+      showPage(loginPage);
+    })();
+  </script>
+</body>
+</html>
